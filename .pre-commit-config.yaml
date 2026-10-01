@@ -1,0 +1,7 @@
+repos:                                              # lista delle sorgenti di controlli
+  - repo: https://github.com/astral-sh/ruff-pre-commit   # da dove scaricare i controlli
+    rev: v0.16.10                                     # quale versione usare
+    hooks:                                          # quali controlli attivare da lì
+      - id: ruff                                    # 1° controllo: il linter
+        args: [--fix]                               #   ...correggi da solo ciò che puoi
+      - id: ruff-format                             # 2° controllo: il formattatore

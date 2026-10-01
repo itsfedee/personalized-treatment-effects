@@ -1,0 +1,23 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# dati: mai su GitHub
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+
+# notebook
+.ipynb_checkpoints/
+
+# documentazione IST (materiale di terzi)
+docs/*.pdf
+docs/IST_variables.csv
