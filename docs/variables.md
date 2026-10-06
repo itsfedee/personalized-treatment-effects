@@ -1,10 +1,10 @@
 # Variables used in the analysis
 
-## Baseline variables, treatment and identifiers
+## Variable overview (some of the variables in the dataset)
 
 | Variable | Meaning | Role | Expected values | Notes |
 |---|---|---|---|---|
-| `HOSPNUM` | Hospital number | identifier | integer | not a covariate |
+| `HOSPNUM` | Hospital number | identifier | integer | may be used to group patients by hospital |
 | `RDELAY` | Hours from stroke onset to randomisation | covariate | 0–48 | inclusion criterion: onset within 48 h |
 | `RCONSC` | Conscious state | covariate | F / D / U | F = fully alert, D = drowsy, U = unconscious |
 | `SEX` | Sex | covariate | M / F | |
@@ -12,14 +12,24 @@
 | `RSLEEP` | Symptoms noted on waking | covariate | Y / N | |
 | `RATRIAL` | Atrial fibrillation | covariate | Y / N | not recorded in the pilot phase (984 patients) |
 | `RCT` | CT scan before randomisation | covariate | Y / N | |
-| `RVISINF` | Infarct visible on CT | covariate | Y / N | meaningful only if `RCT` = Y |
+| `RVISINF` | Infarct visible on CT | covariate | Y / N | meaningful only if `RCT` = Y. Coded N when no CT was done (6,410 patients). 1 patient has RCT = N and RVISINF = Y (impossible): likely a recording error. |
 | `RHEP24` | Heparin in the 24 h before randomisation | covariate | Y / N | not the trial heparin |
-| `RASP3` | Aspirin in the 3 days before randomisation | covariate | Y / N | not the trial aspirin (≠ `RXASP`, `DASP14`) |
+| `RASP3` | Aspirin in the 3 days before randomisation | covariate | Y / N | not the trial aspirin (≠ `RXASP`, `DASP14`). 984 missing, the same patients as RATRIAL: probably not recorded in the pilot phase (to confirm with RDATE) |
 | `RSBP` | Systolic blood pressure | covariate | mmHg | plausible range roughly 60–300 |
 | `RDEF1`–`RDEF8` | Neurological deficits: face, arm/hand, leg/foot, dysphasia, hemianopia, visuospatial, brainstem/cerebellar, other | covariate | Y / N / C | C = can't assess (often unconscious patients): not a plain missing value |
 | `STYPE` | Stroke subtype (Oxford classification) | covariate | TACS / PACS / POCS / LACS / OTH | largely derived from the deficits |
 | `RXASP` | Trial aspirin allocated | treatment | Y / N | |
 | `RXHEP` | Trial heparin allocated | treatment | N / L / M | M is coded as H in the pilot phase → recode H → M |
+| `OCCODE` | Six-month outcome | outcome | 1 / 2 / 3 / 4 / 8 / 9 | 1 = dead, 2 = dependent, 3 = not recovered, 4 = recovered, 8–9 = missing; primary outcome: 1–2 → event, 3–4 → no event. Value 0 (97 patients) is not in the dictionary; all have FDEAD missing → treat 0 as missing, like 8 and 9 |
+| `ID14` | Death within 14 days | outcome | 0 / 1 | derived by the authors |
+| `FDEAD` | Dead at the time of the 6-month follow-up contact | auxiliary | Y / N / U (+ missing) | U = unknown (not in the dictionary; 53 of 57 have `OCCODE` = 9); may include deaths after 6 months (128 patients have `OCCODE` = 2 and `FDEAD` = Y) → use `OCCODE` for 6-month status |
+| `ISC14` | Recurrent ischaemic stroke within 14 days | outcome | 0 / 1 | expected benefit |
+| `PE14` | Pulmonary embolism within 14 days | outcome | 0 / 1 | expected benefit |
+| `H14` | Cerebral haemorrhage within 14 days | outcome | 0 / 1 | expected harm; wider definition than `DRSH` |
+| `TRAN14` | Major non-cerebral haemorrhage within 14 days | outcome | 0 / 1 | expected harm |
+| `RDATE` | Date of randomisation | auxiliary | month-year, e.g. `paź-91` | month abbreviations in Polish; useful to identify the pilot phase |
+| `SET14D` | Known to be dead or alive at 14 days | auxiliary | 0 / 1 | needed to interpret `ID14` |
+| `COUNTRY` | Country code | auxiliary | abbreviated code | candidate covariate, to evaluate separately |
 
 ## Outcomes
 
