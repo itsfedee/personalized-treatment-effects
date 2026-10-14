@@ -13,5 +13,10 @@ to the original 2011 paper, which contains errors in some date variables.
 The raw file is encoded in Windows-1250 (month abbreviations are in Polish, e.g. `paź`);
 it is converted to UTF-8 in `data/interim/` before loading.
 
+## Data pipeline
+1. `notebooks/01_data_loading.ipynb`: converts the raw file to UTF-8 (`data/interim/`)
+2. `uv run python scripts/clean.py`: cleans the data (`data/processed/ist_clean.parquet`)
+3. `notebooks/03_cleaned_data_checks.ipynb`: checks the cleaned data
+
 ## Setup
 uv sync
