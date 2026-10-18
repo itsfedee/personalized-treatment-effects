@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 CT_STATUS_VALUES = ["no_ct", "no_infarct_visible", "infarct_visible"]
+DEFICIT_COLUMNS = [f"RDEF{i}" for i in range(1, 9)]
 
 
 def add_ct_status(df: pd.DataFrame) -> pd.DataFrame:
@@ -31,4 +32,41 @@ def add_ct_status(df: pd.DataFrame) -> pd.DataFrame:
     df["ct_status"] = pd.Series(ct_status, index=df.index, dtype="str")
     if df["ct_status"].isna().any():
         raise ValueError("ct_status undefined for some rows")
+    return df
+
+
+def add_n_deficits(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add n_deficits, the number of neurological deficits present.
+
+    Counts how many of RDEF1-RDEF8 are "Y". "C" (can't assess) is not counted: it is
+    neither present nor absent, and is tracked separately by
+    any_deficit_not_assessable. Values range from 0 to 8, no missing.
+    """
+    df = df.copy()
+    df["n_deficits"] = (df[DEFICIT_COLUMNS] == "Y").sum(axis=1)
+    return df
+
+
+def add_deficit_not_assessable(df: pd.DataFrame) -> pd.DataFrame:
+    """Adds a new column "deficit_not_assessable" that specifies
+    whether the patient could not be fully assessed, usually because too severely impaired
+    """
+    df = df.copy()
+    df["deficit_not_assessable"] = (df[DEFICIT_COLUMNS] == "C").any(axis=1)
+    return df
+
+
+def add_rhep24_missing(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add rhep24_missing: True where RHEP24 is missing.
+
+    RHEP24 is missing for 344 pilot-phase patients randomised before the
+    question was added to the form (Feb 1992). Imputation in the modelling
+    pipeline will fill these values, so this flag keeps track of them.
+    No indicators are built for RATRIAL and RASP3: their missing values
+    coincide exactly with pilot_phase.
+    """
+    df = df.copy()
+    df["rhep24_missing"] = df["RHEP24"].isna()
     return df
