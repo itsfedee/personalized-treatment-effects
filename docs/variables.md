@@ -61,3 +61,32 @@ Note: Pilot phase: Jan 1991 – early Mar 1993 (984 patients, identified by RATR
 - Create `pilot_phase` = `RATRIAL` is missing.
 - `RVISINF`: 1 patient with RCT = N and RVISINF = Y → decision to take.
 - `RDEF1`–`RDEF8`: value C (can't assess) → decision to take.
+
+## Feature engineering decisions
+
+Deterministic transformations only (no parameter learned from the data), in
+`src/ml_med/features.py`.
+
+- `ct_status`: single CT variable from `RCT` and `RVISINF`, with values
+  `no_ct`, `no_infarct_visible`, `infarct_visible`. Replaces the two original
+  columns as model input: `RVISINF` = N was ambiguous (no CT, or CT without
+  visible infarct). The patient with `RVISINF` missing (RCT = N) is `no_ct`.
+- `n_deficits`: number of `RDEF1`–`RDEF8` equal to Y (0–8). Summarises overall
+  stroke severity. C is not counted.
+- `deficit_not_assessable`: True if any of `RDEF1`–`RDEF8` is C. Keeps the
+  information that the patient could not be fully assessed, usually because
+  too severely impaired (91% of unconscious patients, 62% of drowsy, 18% of
+  alert). The eight `RDEF` columns are kept as inputs too, with C as a third
+  category.
+- `rhep24_missing`: True where `RHEP24` is missing (344 pilot-phase patients
+  randomised before Feb 1992). Preserves the information before imputation.
+- No missing indicators for `RATRIAL` and `RASP3`: their missing values
+  coincide exactly with `pilot_phase`, which is already a feature.
+- `FEATURE_COLUMNS` lists the model inputs (X). Excluded: `RCT` and
+  `RVISINF` (replaced by `ct_status`), treatment (`RXASP`, `RXHEP`),
+  outcomes, identifiers and dates. `COUNTRY` is left out for now, to evaluate
+  in phase 5.
+- Continuous variables (`AGE`, `RDELAY`, `RSBP`) are kept as they are: no
+  binning.
+- Output: `data/processed/ist_features.parquet`, 19,435 rows × 42 columns,
+  produced by `uv run python scripts/build_features.py`.
