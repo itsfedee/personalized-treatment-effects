@@ -88,3 +88,34 @@ def test_add_rhep24_missing_flags_missing_values():
 
     result = features.add_rhep24_missing(df)
     assert result["rhep24_missing"].tolist() == [False, False, True]
+
+
+def test_build_features_adds_all_feature_columns():
+    df = pd.DataFrame({col: ["Y"] for col in features.DEFICIT_COLUMNS})
+    df["RCT"] = pd.Series([True], dtype="boolean")
+    df["RVISINF"] = pd.Series([True], dtype="boolean")
+    df["RHEP24"] = pd.Series([None], dtype="boolean")
+    for col in [
+        "AGE",
+        "SEX",
+        "RDELAY",
+        "RCONSC",
+        "RSLEEP",
+        "RSBP",
+        "STYPE",
+        "RATRIAL",
+        "RASP3",
+        "pilot_phase",
+    ]:
+        df[col] = [0]
+
+    result = features.build_features(df)
+    new_columns = [
+        "ct_status",
+        "n_deficits",
+        "deficit_not_assessable",
+        "rhep24_missing",
+    ]
+    assert all(col in result.columns for col in new_columns)
+    assert len(result) == 1
+    assert all(col in result.columns for col in features.FEATURE_COLUMNS)

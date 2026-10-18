@@ -70,3 +70,45 @@ def add_rhep24_missing(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["rhep24_missing"] = df["RHEP24"].isna()
     return df
+
+
+def build_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply all feature functions to the cleaned dataset.
+
+    """
+    df = add_ct_status(df)
+    df = add_n_deficits(df)
+    df = add_deficit_not_assessable(df)
+    df = add_rhep24_missing(df)
+    return df
+
+
+# Model inputs (X) for the causal models of phase 5.
+# Treatment (RXASP, RXHEP) and outcomes are not features: they enter the
+# models as T and Y. RCT and RVISINF are replaced by ct_status.
+# COUNTRY is a candidate to evaluate separately in phase 5.
+FEATURE_COLUMNS = [
+    # demographics
+    "AGE",
+    "SEX",
+    # clinical presentation at randomisation
+    "RDELAY",
+    "RCONSC",
+    "RSLEEP",
+    "RSBP",
+    "STYPE",
+    # history and pre-randomisation drugs
+    "RATRIAL",
+    "RASP3",
+    "RHEP24",
+    "rhep24_missing",
+    # neurological deficits
+    *DEFICIT_COLUMNS,
+    "n_deficits",
+    "deficit_not_assessable",
+    # CT scan
+    "ct_status",
+    # trial phase
+    "pilot_phase",
+]
