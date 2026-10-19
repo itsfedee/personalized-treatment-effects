@@ -21,3 +21,5 @@ data/processed/*
 # documentazione IST (materiale di terzi)
 docs/*.pdf
 docs/IST_variables.csv
+
+notebooks/scratch/
