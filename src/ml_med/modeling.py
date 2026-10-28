@@ -1,8 +1,9 @@
+import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from ml_med.features import DEFICIT_COLUMNS
+from ml_med.features import DEFICIT_COLUMNS, FEATURE_COLUMNS
 
 # standardised (StandardScaler)
 NUMERIC_COLUMNS = ["AGE", "RDELAY", "RSBP", "n_deficits"]
@@ -55,3 +56,31 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
             ),
         ]
     )
+
+
+def prepare_data(
+    df: pd.DataFrame, treatment: str
+) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """
+    Split the features dataset into X, y, t for the study of one treatment.
+
+    Rows with a missing primary outcome (150 patients...<1%) are dropped:
+    a model learns nothing from them. X holds FEATURE_COLUMNS plus the
+    other treatment, which is a legitimate feature because the two
+    treatments were randomised independently. y is the outcome as int,
+    t is the treatment under study, used to split patients, not as a feature.
+    """
+
+    if treatment not in OTHER_TREATMENT:
+        raise ValueError(
+            f"treatment must be one of {list(OTHER_TREATMENT)}, got {treatment!r}"
+        )
+
+    has_outcome = df["death_or_dependency_6m"].notna()
+    df = df[has_outcome]
+    other = OTHER_TREATMENT[treatment]
+    X = df[FEATURE_COLUMNS + [other]]
+    y = df["death_or_dependency_6m"].astype(int)
+    t = df[treatment]
+
+    return X, y, t
