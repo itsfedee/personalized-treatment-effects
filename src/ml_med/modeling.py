@@ -1,6 +1,7 @@
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ml_med.features import DEFICIT_COLUMNS, FEATURE_COLUMNS
@@ -84,3 +85,14 @@ def prepare_data(
     t = df[treatment]
 
     return X, y, t
+
+
+def split_train_test(
+    X: pd.DataFrame, y: pd.Series, t: pd.Series
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.Series, pd.Series]:
+    """Split the features X, labels y and (presence of) treatment t in train/test"""
+    strata = y.astype(str) + "_" + t.astype(str)
+    X_train, X_test, y_train, y_test, t_train, t_test = train_test_split(
+        X, y, t, test_size=0.2, random_state=0, stratify=strata
+    )
+    return X_train, X_test, y_train, y_test, t_train, t_test

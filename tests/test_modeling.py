@@ -44,6 +44,11 @@ def make_df() -> pd.DataFrame:
     return df
 
 
+def make_split_df() -> pd.DataFrame:
+    """Twenty patients: make_df() repeated, so both strata have 10 rows."""
+    return pd.concat([make_df()] * 10, ignore_index=True)
+
+
 def test_make_preprocessor_output_width():
     df = make_df()
     X = df[FEATURE_COLUMNS + ["RXHEP"]]
@@ -69,3 +74,22 @@ def test_prepare_data_drops_missing_outcome_and_adds_other_treatment():
 def test_prepare_data_rejects_unknown_treatment():
     with pytest.raises(ValueError):
         modeling.prepare_data(make_df(), "AGE")
+
+
+def test_split_train_test_sizes():
+    """make_split_df() gives a dataset with 20 patients, so I expect the train to be 16 and test 4"""
+    X, y, t = modeling.prepare_data(make_split_df(), "RXASP")
+    X_train, X_test, y_train, y_test, t_train, t_test = modeling.split_train_test(
+        X, y, t
+    )
+    assert len(X_test) == len(y_test) == len(t_test) == 4
+    assert len(X_train) == len(y_train) == len(t_train) == 16
+    assert X_test.index.tolist() == y_test.index.tolist() == t_test.index.tolist()
+
+
+def test_split_train_test_is_reproducible():
+    """test if split_train_test gives always the same result"""
+    X, y, t = modeling.prepare_data(make_split_df(), "RXASP")
+    first = modeling.split_train_test(X, y, t)
+    second = modeling.split_train_test(X, y, t)
+    assert first[1].index.tolist() == second[1].index.tolist()
