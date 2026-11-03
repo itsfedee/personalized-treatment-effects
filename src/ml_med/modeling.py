@@ -4,7 +4,7 @@ from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import KFold, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -56,7 +56,9 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
             ("cat", OneHotEncoder(handle_unknown="ignore"), categorical),
             (
                 "bool",
-                SimpleImputer(strategy="constant", fill_value=False),
+                SimpleImputer(
+                    strategy="constant", fill_value=False, keep_empty_features=True
+                ),
                 BOOLEAN_COLUMNS,
             ),
         ]
@@ -138,3 +140,28 @@ def predict_cate(models: dict[int, Pipeline], X: pd.DataFrame) -> np.ndarray:
     p1 = models[1].predict_proba(X)[:, 1]  # risk if treated
     p0 = models[0].predict_proba(X)[:, 1]  # risk if not treated
     return p1 - p0
+
+
+def cross_fit_cate(
+    X: pd.DataFrame,
+    y: pd.Series,
+    t: pd.Series,
+    treatment: str,
+    clf=None,
+    n_splits: int = 5,
+    random_state: int = 0,
+) -> pd.Series:
+    """Compute CATE for each patient using a t-learner that didn't see it in the training.
+    Use k-fold.
+    """
+
+    cate = np.empty(len(X))  # initialize empty list of cate
+    kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+
+    for train_idx, test_idx in kfold.split(X):
+        models = fit_t_learner(
+            X.iloc[train_idx], y.iloc[train_idx], t.iloc[train_idx], treatment, clf
+        )
+        cate[test_idx] = predict_cate(models, X.iloc[test_idx])
+
+    return pd.Series(cate, index=X.index)
