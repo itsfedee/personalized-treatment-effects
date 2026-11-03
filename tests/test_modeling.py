@@ -149,3 +149,28 @@ def test_cross_fit_cate_is_reproducible():
     first = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, random_state=0)
     second = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, random_state=0)
     assert first.equals(second)
+
+
+def make_uplift_inputs() -> tuple[pd.Series, pd.Series, pd.Series]:
+    """100 patients: cate increasing, treatment alternating, outcome equal to treatment."""
+    cate = pd.Series(range(100)) / 100 - 0.5
+    t = pd.Series([0, 1] * 50)
+    y = t.copy()
+    return cate, y, t
+
+
+def test_uplift_by_decile_shape():
+    cate, y, t = make_uplift_inputs()
+    table = modeling.uplift_by_decile(cate, y, t)
+    assert list(table.index) == list(range(1, 11))
+    assert table["n"].sum() == 100
+    assert (table["uplift"] == table["rate_treated"] - table["rate_control"]).all()
+
+
+def test_uplift_by_decile_detects_perfect_model():
+    cate, y, t = make_uplift_inputs()
+    # decile 1: treated have outcome 0, controls 1 -> uplift -1
+    y.iloc[:10] = 1 - t.iloc[:10]
+    table = modeling.uplift_by_decile(cate, y, t)
+    assert table.loc[1, "uplift"] == -1
+    assert table.loc[10, "uplift"] == 1

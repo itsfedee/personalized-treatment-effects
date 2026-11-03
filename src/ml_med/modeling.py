@@ -165,3 +165,24 @@ def cross_fit_cate(
         cate[test_idx] = predict_cate(models, X.iloc[test_idx])
 
     return pd.Series(cate, index=X.index)
+
+
+def uplift_by_decile(
+    cate: pd.Series, y: pd.Series, t: pd.Series, n_bins: int = 10
+) -> pd.DataFrame:
+
+    df = pd.DataFrame({"cate": cate, "y": y, "t": t.astype(int)})
+    df["decile"] = pd.qcut(df["cate"], n_bins, labels=False) + 1
+
+    rates = df.groupby(["decile", "t"])["y"].mean().unstack("t")
+
+    by_decile = df.groupby("decile")
+    return pd.DataFrame(
+        {
+            "n": by_decile.size(),
+            "cate_mean": by_decile["cate"].mean(),
+            "rate_control": rates[0],
+            "rate_treated": rates[1],
+            "uplift": rates[1] - rates[0],
+        }
+    )
