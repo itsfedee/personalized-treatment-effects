@@ -1,5 +1,7 @@
 import pandas as pd
 import pytest
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 
 from ml_med import modeling
 from ml_med.features import DEFICIT_COLUMNS, FEATURE_COLUMNS
@@ -49,6 +51,13 @@ def make_split_df() -> pd.DataFrame:
     return pd.concat([make_df()] * 10, ignore_index=True)
 
 
+def make_learner_df() -> pd.DataFrame:
+    """Twenty patients with both outcomes in each arm, enough to fit a T-learner."""
+    df = make_split_df()
+    df["death_or_dependency_6m"] = pd.Series([0, 1, 1, 0] * 5, dtype="Int64")
+    return df
+
+
 def test_make_preprocessor_output_width():
     df = make_df()
     X = df[FEATURE_COLUMNS + ["RXHEP"]]
@@ -93,3 +102,35 @@ def test_split_train_test_is_reproducible():
     first = modeling.split_train_test(X, y, t)
     second = modeling.split_train_test(X, y, t)
     assert first[1].index.tolist() == second[1].index.tolist()
+
+
+def test_make_model_default_is_logistic():
+    model = modeling.make_model("RXASP")
+    assert isinstance(model["clf"], LogisticRegression)
+
+
+def test_make_model_accepts_custom_classifier():
+    model = modeling.make_model("RXHEP", clf=RandomForestClassifier())
+    assert isinstance(model["clf"], RandomForestClassifier)
+
+
+def test_fit_t_learner_returns_two_fitted_models():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    models = modeling.fit_t_learner(X, y, t, "RXASP")
+    assert set(models) == {0, 1}
+    assert models[0].predict_proba(X).shape == (20, 2)
+    assert models[1].predict_proba(X).shape == (20, 2)
+
+
+def test_fit_t_learner_models_are_independent():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    models = modeling.fit_t_learner(X, y, t, "RXASP")
+    assert models[0]["clf"] is not models[1]["clf"]
+
+
+def test_predict_cate_shape():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    models = modeling.fit_t_learner(X, y, t, "RXASP")
+    cate = modeling.predict_cate(models, X)
+    assert cate.shape == (20,)
+    assert ((cate >= -1) & (cate <= 1)).all()
