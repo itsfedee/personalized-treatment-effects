@@ -1,7 +1,11 @@
+import numpy as np
 import pandas as pd
+from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from ml_med.features import DEFICIT_COLUMNS, FEATURE_COLUMNS
@@ -28,7 +32,7 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
     treatment is the treatment under study ("RXASP" or "RXHEP"); the other
     one is added to the features, because the two were randomised
     independently. Numeric columns are
-    standardised, binary ones are already ok, categorical ones one-hot
+    standardized, binary ones are already ok, categorical ones one-hot
     encoded, nullable booleans imputed with False. These steps learn
     from the data (means, categories), so they live in the model
     Pipeline and are refitted on each training fold, not in features.py.
@@ -49,7 +53,7 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
         [
             ("num", StandardScaler(), NUMERIC_COLUMNS),
             ("bin", "passthrough", binary),
-            ("cat", OneHotEncoder(), categorical),
+            ("cat", OneHotEncoder(handle_unknown="ignore"), categorical),
             (
                 "bool",
                 SimpleImputer(strategy="constant", fill_value=False),
@@ -96,3 +100,41 @@ def split_train_test(
         X, y, t, test_size=0.2, random_state=0, stratify=strata
     )
     return X_train, X_test, y_train, y_test, t_train, t_test
+
+
+def make_model(treatment: str, clf=None) -> Pipeline:
+    """Return a Pipeline object with architecture clf.
+    clf is any sklearn classifier; the default is logistic regression, chosen in notebook 05 as the best of four candidates on 5-fold CV.
+    """
+    if clf is None:
+        clf = LogisticRegression(max_iter=1000)
+
+    return Pipeline([("prep", make_preprocessor(treatment)), ("clf", clf)])
+
+
+def fit_t_learner(
+    X: pd.DataFrame, y: pd.Series, t: pd.Series, treatment: str, clf=None
+) -> dict[int, Pipeline]:
+    """
+    Fit a T-learner: one risk model per arm, same classifier.
+
+    Returns {0: model fitted on controls (not treated), 1: model fitted on treated}.
+    clf is cloned for each arm so the two models are independent.
+    """
+
+    if clf is None:
+        clf = LogisticRegression(max_iter=1000)
+
+    models = {}
+    for arm in (0, 1):
+        mask = t == arm  # mask is true when t = arm
+        model = make_model(treatment, clone(clf))
+        models[arm] = model.fit(X[mask], y[mask])
+
+    return models
+
+
+def predict_cate(models: dict[int, Pipeline], X: pd.DataFrame) -> np.ndarray:
+    p1 = models[1].predict_proba(X)[:, 1]  # risk if treated
+    p0 = models[0].predict_proba(X)[:, 1]  # risk if not treated
+    return p1 - p0
