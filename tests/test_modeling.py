@@ -214,3 +214,10 @@ def test_uplift_by_decile_detects_perfect_model():
     table = modeling.uplift_by_decile(cate, y, t)
     assert table.loc[1, "uplift"] == -1
     assert table.loc[10, "uplift"] == 1
+
+
+def test_uplift_by_decile_handles_ties():
+    cate, y, t = make_uplift_inputs()
+    cate.iloc[:50] = 0.0
+    result = modeling.uplift_by_decile(cate, y, t)
+    assert (result["n"] == 10).all()
