@@ -25,7 +25,7 @@ BOOLEAN_COLUMNS = ["RSLEEP", "RATRIAL", "RASP3", "RHEP24"]
 OTHER_TREATMENT = {"RXASP": "RXHEP", "RXHEP": "RXASP"}
 
 
-def make_preprocessor(treatment: str) -> ColumnTransformer:
+def make_preprocessor(treatment: str, include_treatment=False) -> ColumnTransformer:
     """
     Build the ColumnTransformer that prepares the features for a model.
 
@@ -36,6 +36,8 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
     encoded, nullable booleans imputed with False. These steps learn
     from the data (means, categories), so they live in the model
     Pipeline and are refitted on each training fold, not in features.py.
+
+    With include_treatment=True the treatment itself becomes a feature, as the S-learner needs.
     """
     if treatment not in OTHER_TREATMENT:
         raise ValueError(
@@ -48,6 +50,12 @@ def make_preprocessor(treatment: str) -> ColumnTransformer:
     else:
         binary = BINARY_COLUMNS + ["RXASP"]
         categorical = CATEGORICAL_COLUMNS
+
+    if include_treatment:
+        if treatment == "RXASP":
+            binary = binary + [treatment]
+        else:
+            categorical = categorical + [treatment]
 
     return ColumnTransformer(
         [
@@ -104,14 +112,16 @@ def split_train_test(
     return X_train, X_test, y_train, y_test, t_train, t_test
 
 
-def make_model(treatment: str, clf=None) -> Pipeline:
+def make_model(treatment: str, clf=None, include_treatment: bool = False) -> Pipeline:
     """Return a Pipeline object with architecture clf.
     clf is any sklearn classifier; the default is logistic regression, chosen in notebook 05 as the best of four candidates on 5-fold CV.
     """
     if clf is None:
         clf = LogisticRegression(max_iter=1000)
 
-    return Pipeline([("prep", make_preprocessor(treatment)), ("clf", clf)])
+    return Pipeline(
+        [("prep", make_preprocessor(treatment, include_treatment)), ("clf", clf)]
+    )
 
 
 def fit_t_learner(
@@ -136,10 +146,27 @@ def fit_t_learner(
     return models
 
 
+def fit_s_learner(X, y, t, treatment, clf=None) -> Pipeline:
+
+    if clf is None:
+        clf = LogisticRegression(max_iter=1000)
+
+    X_s = X.assign(**{treatment: t.astype(int)})
+    model = make_model(treatment, clf, include_treatment=True).fit(X_s, y)
+
+    return model
+
+
 def predict_cate(models: dict[int, Pipeline], X: pd.DataFrame) -> np.ndarray:
     p1 = models[1].predict_proba(X)[:, 1]  # risk if treated
     p0 = models[0].predict_proba(X)[:, 1]  # risk if not treated
     return p1 - p0
+
+
+def predict_cate_s(model, X, treatment) -> np.ndarray:
+    X1 = X.assign(**{treatment: 1})
+    X0 = X.assign(**{treatment: 0})
+    return model.predict_proba(X1)[:, 1] - model.predict_proba(X0)[:, 1]
 
 
 def cross_fit_cate(
@@ -148,21 +175,30 @@ def cross_fit_cate(
     t: pd.Series,
     treatment: str,
     clf=None,
+    learner: str = "t",
     n_splits: int = 5,
     random_state: int = 0,
 ) -> pd.Series:
-    """Compute CATE for each patient using a t-learner that didn't see it in the training.
+    """Compute CATE for each patient using a t-learneror s-learner that didn't see it in the training.
     Use k-fold.
     """
+    if learner not in ("t", "s"):
+        raise ValueError(f"learner must be 't' or 's', got {learner!r}")
 
     cate = np.empty(len(X))  # initialize empty list of cate
     kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
     for train_idx, test_idx in kfold.split(X):
-        models = fit_t_learner(
-            X.iloc[train_idx], y.iloc[train_idx], t.iloc[train_idx], treatment, clf
-        )
-        cate[test_idx] = predict_cate(models, X.iloc[test_idx])
+        if learner == "t":
+            models = fit_t_learner(
+                X.iloc[train_idx], y.iloc[train_idx], t.iloc[train_idx], treatment, clf
+            )
+            cate[test_idx] = predict_cate(models, X.iloc[test_idx])
+        elif learner == "s":
+            model = fit_s_learner(
+                X.iloc[train_idx], y.iloc[train_idx], t.iloc[train_idx], treatment, clf
+            )
+            cate[test_idx] = predict_cate_s(model, X.iloc[test_idx], treatment)
 
     return pd.Series(cate, index=X.index)
 
