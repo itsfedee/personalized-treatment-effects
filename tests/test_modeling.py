@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import Pipeline
 
 from ml_med import modeling
 from ml_med.features import DEFICIT_COLUMNS, FEATURE_COLUMNS
@@ -65,6 +66,15 @@ def test_make_preprocessor_output_width():
     assert X_prep.shape == (2, 37)
 
 
+def test_make_preprocessor_with_treatment_width():
+    df = make_df()
+    X = df[FEATURE_COLUMNS + ["RXHEP", "RXASP"]]
+    X_prep = modeling.make_preprocessor("RXASP", include_treatment=True).fit_transform(
+        X
+    )
+    assert X_prep.shape == (2, 38)
+
+
 def test_make_preprocessor_rejects_unknown_treatment():
     with pytest.raises(ValueError):
         modeling.make_preprocessor("AGE")
@@ -122,16 +132,32 @@ def test_fit_t_learner_returns_two_fitted_models():
     assert models[1].predict_proba(X).shape == (20, 2)
 
 
+def test_fit_s_learner_returns_fitted_model():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    model = modeling.fit_s_learner(X, y, t, "RXASP")
+    assert isinstance(model, Pipeline)
+    X_s = X.assign(RXASP=t.astype(int))
+    assert model.predict_proba(X_s).shape == (20, 2)
+
+
 def test_fit_t_learner_models_are_independent():
     X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
     models = modeling.fit_t_learner(X, y, t, "RXASP")
     assert models[0]["clf"] is not models[1]["clf"]
 
 
-def test_predict_cate_shape():
+def test_predict_cate_shape_t_learner():
     X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
     models = modeling.fit_t_learner(X, y, t, "RXASP")
     cate = modeling.predict_cate(models, X)
+    assert cate.shape == (20,)
+    assert ((cate >= -1) & (cate <= 1)).all()
+
+
+def test_predict_cate_shape_s_learner():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    model = modeling.fit_s_learner(X, y, t, "RXASP")
+    cate = modeling.predict_cate_s(model, X, "RXASP")
     assert cate.shape == (20,)
     assert ((cate >= -1) & (cate <= 1)).all()
 
@@ -142,6 +168,20 @@ def test_cross_fit_cate_covers_every_row():
     assert cate.index.equals(X.index)
     assert cate.notna().all()
     assert cate.between(-1, 1).all()
+
+
+def test_cross_fit_cate_s_learner():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    cate = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, learner="s")
+    assert cate.index.equals(X.index)
+    assert cate.notna().all()
+    assert cate.between(-1, 1).all()
+
+
+def test_cross_fit_cate_rejects_unknown_learner():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    with pytest.raises(ValueError, match="learner"):
+        modeling.cross_fit_cate(X, y, t, "RXASP", learner="x")
 
 
 def test_cross_fit_cate_is_reproducible():
