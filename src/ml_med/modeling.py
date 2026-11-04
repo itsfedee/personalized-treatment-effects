@@ -206,9 +206,19 @@ def cross_fit_cate(
 def uplift_by_decile(
     cate: pd.Series, y: pd.Series, t: pd.Series, n_bins: int = 10
 ) -> pd.DataFrame:
+    """
+    Observed outcome rates by decile of predicted CATE.
+
+    Patients are ranked by cate and cut into n_bins groups of equal size
+    (ties broken by position, so a learner predicting many identical
+    values still gets n_bins groups). For each group: size, mean predicted
+    cate, outcome rate in controls and treated, and their difference
+    (uplift), to be compared with the predicted cate_mean.
+    """
 
     df = pd.DataFrame({"cate": cate, "y": y, "t": t.astype(int)})
-    df["decile"] = pd.qcut(df["cate"], n_bins, labels=False) + 1
+    ranks = df["cate"].rank(method="first")
+    df["decile"] = pd.qcut(ranks, n_bins, labels=False) + 1
 
     rates = df.groupby(["decile", "t"])["y"].mean().unstack("t")
 
