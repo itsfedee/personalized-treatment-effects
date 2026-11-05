@@ -237,3 +237,16 @@ def test_uplift_by_decile_handles_ties():
     cate.iloc[:50] = 0.0
     result = modeling.uplift_by_decile(cate, y, t)
     assert (result["n"] == 10).all()
+
+
+def test_bootstrap_uplift_shape():
+    cate, y, t = make_uplift_inputs()
+    df = modeling.bootstrap_uplift(cate, y, t, n_boot=20)
+    assert df.shape == (20, 10)
+
+
+def test_bootstrap_uplift_is_reproducible():
+    cate, y, t = make_uplift_inputs()
+    df1 = modeling.bootstrap_uplift(cate, y, t, n_boot=20)
+    df2 = modeling.bootstrap_uplift(cate, y, t, n_boot=20)
+    assert df1.equals(df2)

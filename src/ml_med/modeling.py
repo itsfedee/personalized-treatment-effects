@@ -264,3 +264,20 @@ def uplift_by_decile(
             "uplift": rates[1] - rates[0],
         }
     )
+
+
+def bootstrap_uplift(
+    cate, y, t, n_bins=10, n_boot=1000, random_state=0
+) -> pd.DataFrame:
+    df = pd.DataFrame({"cate": cate, "y": y, "t": t})
+    rng = np.random.default_rng(random_state)
+
+    rows = []
+    for _ in range(n_boot):
+        sample = df.sample(frac=1, replace=True, random_state=rng).reset_index(
+            drop=True
+        )
+        table = uplift_by_decile(sample["cate"], sample["y"], sample["t"], n_bins)
+        rows.append(table["uplift"])
+
+    return pd.DataFrame(rows).reset_index(drop=True)
