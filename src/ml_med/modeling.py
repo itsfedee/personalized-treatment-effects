@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
+from econml.dml import CausalForestDML
 from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
+from sklearn.dummy import DummyClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import KFold, train_test_split
@@ -157,6 +159,23 @@ def fit_s_learner(X, y, t, treatment, clf=None) -> Pipeline:
     return model
 
 
+def fit_causal_forest(X, y, t, treatment, min_samples_leaf=100, random_state=0) -> dict:
+
+    prep = make_preprocessor(treatment)
+    X_num = prep.fit_transform(X)
+    cf = CausalForestDML(
+        model_y=LogisticRegression(max_iter=1000),
+        model_t=DummyClassifier(strategy="prior"),
+        discrete_outcome=True,
+        discrete_treatment=True,
+        min_samples_leaf=min_samples_leaf,
+        random_state=random_state,
+    )
+    cf.fit(y, t, X=X_num)
+
+    return {"prep": prep, "forest": cf}
+
+
 def predict_cate(models: dict[int, Pipeline], X: pd.DataFrame) -> np.ndarray:
     p1 = models[1].predict_proba(X)[:, 1]  # risk if treated
     p0 = models[0].predict_proba(X)[:, 1]  # risk if not treated
@@ -167,6 +186,14 @@ def predict_cate_s(model, X, treatment) -> np.ndarray:
     X1 = X.assign(**{treatment: 1})
     X0 = X.assign(**{treatment: 0})
     return model.predict_proba(X1)[:, 1] - model.predict_proba(X0)[:, 1]
+
+
+def predict_cate_cf(model: dict, X: pd.DataFrame) -> np.ndarray:
+
+    X_num = model["prep"].transform(X)
+    cate = model["forest"].effect(X_num).ravel()
+
+    return cate
 
 
 def cross_fit_cate(
@@ -182,8 +209,8 @@ def cross_fit_cate(
     """Compute CATE for each patient using a t-learneror s-learner that didn't see it in the training.
     Use k-fold.
     """
-    if learner not in ("t", "s"):
-        raise ValueError(f"learner must be 't' or 's', got {learner!r}")
+    if learner not in ("t", "s", "cf"):
+        raise ValueError(f"learner must be 't', 's' or 'cf', got {learner!r}")
 
     cate = np.empty(len(X))  # initialize empty list of cate
     kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
@@ -200,6 +227,11 @@ def cross_fit_cate(
             )
             cate[test_idx] = predict_cate_s(model, X.iloc[test_idx], treatment)
 
+        elif learner == "cf":
+            model = fit_causal_forest(
+                X.iloc[train_idx], y.iloc[train_idx], t.iloc[train_idx], treatment
+            )
+            cate[test_idx] = predict_cate_cf(model, X.iloc[test_idx])
     return pd.Series(cate, index=X.index)
 
 

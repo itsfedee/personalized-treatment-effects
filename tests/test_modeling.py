@@ -162,6 +162,14 @@ def test_predict_cate_shape_s_learner():
     assert ((cate >= -1) & (cate <= 1)).all()
 
 
+def test_predict_cate_shape_cf():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    model = modeling.fit_causal_forest(X, y, t, "RXASP")
+    cate = modeling.predict_cate_cf(model, X)
+    assert cate.shape == (20,)
+    assert ((cate >= -1) & (cate <= 1)).all()
+
+
 def test_cross_fit_cate_covers_every_row():
     X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
     cate = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2)
@@ -189,6 +197,14 @@ def test_cross_fit_cate_is_reproducible():
     first = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, random_state=0)
     second = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, random_state=0)
     assert first.equals(second)
+
+
+def test_cross_fit_cate_cf():
+    X, y, t = modeling.prepare_data(make_learner_df(), "RXASP")
+    cate = modeling.cross_fit_cate(X, y, t, "RXASP", n_splits=2, learner="cf")
+    assert cate.index.equals(X.index)
+    assert cate.notna().all()
+    assert cate.between(-1, 1).all()
 
 
 def make_uplift_inputs() -> tuple[pd.Series, pd.Series, pd.Series]:
