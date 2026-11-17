@@ -1,7 +1,34 @@
 # Personalized Treatment Effects
 
-Estimating individual treatment effects of aspirin and heparin in acute ischaemic stroke,
-using patient-level data from the International Stroke Trial (IST).
+Can the effect of aspirin and heparin in acute ischaemic stroke be personalised? An analysis of the International Stroke Trial (IST).
+
+## Results
+
+![The app](docs/images/app.png)
+
+**Baseline risk can be predicted.** A logistic regression on 23 features known at
+randomisation predicts death or dependency at 6 months with an AUC of 0.79 to 0.81 on
+the test set.
+
+**The treatment effect cannot be personalised.** T-learner, S-learner and causal forest
+were compared with cross-fitted CATE estimates, uplift by decile, a placebo with permuted
+treatment and a bootstrap band. No learner orders patients by their response better than
+chance, for aspirin or for heparin, and the hint found on the training set did not
+replicate on the test set.
+
+![Uplift by decile](docs/images/uplift_by_decile.png)
+
+**Average benefits and harms per 1000 patients treated** (standard error in brackets):
+
+| Outcome | Aspirin | Heparin |
+|---|---|---|
+| Recurrent ischaemic stroke (14 days) | −9.2 (2.0) | −5.2 (2.0) |
+| Haemorrhagic stroke (14 days) | +1.3 (1.3) | +8.1 (1.3) |
+| Major non-cerebral bleed (14 days) | +5.3 (1.3) | +9.5 (1.3) |
+| Death or dependency (6 months) | −12.5 (7.0) | +0.3 (7.0) |
+
+Heparin prevents recurrent strokes but causes as many bleeds, so its net effect is zero.
+Aspirin keeps a small net benefit.
 
 ## Data
 Download version 2 of the IST database from https://datashare.ed.ac.uk/handle/10283/124
