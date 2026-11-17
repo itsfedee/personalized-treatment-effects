@@ -100,6 +100,9 @@ def prepare_data(
     y = df["death_or_dependency_6m"].astype(int)
     t = df[treatment]
 
+    if treatment == "RXHEP":
+        t = t != "N"
+
     return X, y, t
 
 
@@ -235,8 +238,19 @@ def cross_fit_cate(
     return pd.Series(cate, index=X.index)
 
 
+def fold_ids(X: pd.DataFrame, n_splits: int = 5, random_state: int = 0) -> pd.Series:
+    """Fold number of each patient, with the same split used by cross_fit_cate."""
+    folds = np.empty(len(X), dtype=int)
+    kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+
+    for k, (_, test_idx) in enumerate(kfold.split(X)):
+        folds[test_idx] = k
+
+    return pd.Series(folds, index=X.index)
+
+
 def uplift_by_decile(
-    cate: pd.Series, y: pd.Series, t: pd.Series, n_bins: int = 10
+    cate: pd.Series, y: pd.Series, t: pd.Series, n_bins: int = 10, fold=None
 ) -> pd.DataFrame:
     """
     Observed outcome rates by decile of predicted CATE.
@@ -249,7 +263,12 @@ def uplift_by_decile(
     """
 
     df = pd.DataFrame({"cate": cate, "y": y, "t": t.astype(int)})
-    ranks = df["cate"].rank(method="first")
+    if fold is None:
+        ranks = df["cate"].rank(method="first")
+    else:
+        ranks = df["cate"].groupby(fold).rank(method="first", pct=True)
+        ranks = ranks.rank(method="first")
+
     df["decile"] = pd.qcut(ranks, n_bins, labels=False) + 1
 
     rates = df.groupby(["decile", "t"])["y"].mean().unstack("t")
@@ -267,9 +286,11 @@ def uplift_by_decile(
 
 
 def bootstrap_uplift(
-    cate, y, t, n_bins=10, n_boot=1000, random_state=0
+    cate, y, t, n_bins=10, n_boot=1000, random_state=0, fold=None
 ) -> pd.DataFrame:
     df = pd.DataFrame({"cate": cate, "y": y, "t": t})
+    if fold is not None:  # the fold travels with the patient
+        df["fold"] = fold
     rng = np.random.default_rng(random_state)
 
     rows = []
@@ -277,7 +298,10 @@ def bootstrap_uplift(
         sample = df.sample(frac=1, replace=True, random_state=rng).reset_index(
             drop=True
         )
-        table = uplift_by_decile(sample["cate"], sample["y"], sample["t"], n_bins)
+        sample_fold = None if fold is None else sample["fold"]
+        table = uplift_by_decile(
+            sample["cate"], sample["y"], sample["t"], n_bins, sample_fold
+        )
         rows.append(table["uplift"])
 
     return pd.DataFrame(rows).reset_index(drop=True)

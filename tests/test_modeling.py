@@ -250,3 +250,30 @@ def test_bootstrap_uplift_is_reproducible():
     df1 = modeling.bootstrap_uplift(cate, y, t, n_boot=20)
     df2 = modeling.bootstrap_uplift(cate, y, t, n_boot=20)
     assert df1.equals(df2)
+
+
+def test_prepare_data_binarises_heparin():
+    _, _, t = modeling.prepare_data(make_df(), "RXHEP")
+    assert t.tolist() == [False, True]
+
+
+def test_uplift_by_decile_ranks_within_fold():
+    cate, y, t = make_uplift_inputs()
+    fold = pd.Series([0] * 50 + [1] * 50)
+    table = modeling.uplift_by_decile(cate, y, t, fold=fold)
+    assert (table["n"] == 10).all()
+    assert table.loc[1, "cate_mean"] == pytest.approx(-0.23)
+
+
+def test_bootstrap_uplift_accepts_fold():
+    cate, y, t = make_uplift_inputs()
+    fold = pd.Series([0] * 50 + [1] * 50)
+    boot = modeling.bootstrap_uplift(cate, y, t, n_boot=20, fold=fold)
+    assert boot.shape == (20, 10)
+
+
+def test_fold_ids_covers_every_row():
+    X, _, _ = modeling.prepare_data(make_learner_df(), "RXASP")
+    fold = modeling.fold_ids(X, n_splits=2)
+    assert fold.index.equals(X.index)
+    assert sorted(fold.unique()) == [0, 1]
