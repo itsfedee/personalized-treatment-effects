@@ -26,6 +26,16 @@ BOOLEAN_COLUMNS = ["RSLEEP", "RATRIAL", "RASP3", "RHEP24"]
 
 OTHER_TREATMENT = {"RXASP": "RXHEP", "RXHEP": "RXASP"}
 
+OUTCOMES = {
+    "ISC14": "recurrent ischaemic stroke (14 days)",
+    "H14": "haemorrhagic stroke (14 days)",
+    "PE14": "pulmonary embolism (14 days)",
+    "TRAN14": "major non-cerebral bleed (14 days)",
+    "ID14": "death (14 days)",
+    "FDEAD": "death (6 months)",
+    "death_or_dependency_6m": "death or dependency (6 months)",
+}
+
 
 def make_preprocessor(treatment: str, include_treatment=False) -> ColumnTransformer:
     """
@@ -305,3 +315,24 @@ def bootstrap_uplift(
         rows.append(table["uplift"])
 
     return pd.DataFrame(rows).reset_index(drop=True)
+
+
+def average_effects(df: pd.DataFrame, treatment: str) -> pd.DataFrame:
+    """Average effect of a treatment on every outcome, in events per 1000 patients."""
+    t = df[treatment]
+    if treatment == "RXHEP":
+        t = t != "N"
+    t = t.astype(bool)
+
+    rows = {}
+    for column, label in OUTCOMES.items():
+        y = df[column].astype(float)
+        y1, y0 = y[t].dropna(), y[~t].dropna()  # outcomes of treated and of controls
+        rows[label] = {
+            "control": 1000 * y0.mean(),
+            "treated": 1000 * y1.mean(),
+            "difference": 1000 * (y1.mean() - y0.mean()),
+            "se": 1000 * np.sqrt(y1.var() / len(y1) + y0.var() / len(y0)),
+        }
+
+    return pd.DataFrame(rows).T

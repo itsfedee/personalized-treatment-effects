@@ -277,3 +277,17 @@ def test_fold_ids_covers_every_row():
     fold = modeling.fold_ids(X, n_splits=2)
     assert fold.index.equals(X.index)
     assert sorted(fold.unique()) == [0, 1]
+
+
+def test_average_effects_per_1000():
+    df = pd.DataFrame(
+        {
+            "RXASP": [True, True, False, False],
+            **{column: [1, 0, 1, 1] for column in modeling.OUTCOMES},
+        }
+    )
+    table = modeling.average_effects(df, "RXASP")
+    assert list(table.index) == list(modeling.OUTCOMES.values())
+    assert (table["treated"] == 500).all()
+    assert (table["control"] == 1000).all()
+    assert (table["difference"] == -500).all()
