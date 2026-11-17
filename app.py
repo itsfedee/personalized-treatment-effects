@@ -109,6 +109,14 @@ st.write(
 )
 for treatment, name in (("RXASP", "Aspirin"), ("RXHEP", "Heparin")):
     effects = pd.read_csv(MODELS_DIR / f"effects_{treatment}.csv", index_col=0)
+    effects = effects.rename(
+        columns={
+            "control": "Without treatment",
+            "treated": "With treatment",
+            "difference": "Difference",
+            "se": "Standard error",
+        }
+    )
     st.subheader(name)
     st.dataframe(effects.round(1))
 
